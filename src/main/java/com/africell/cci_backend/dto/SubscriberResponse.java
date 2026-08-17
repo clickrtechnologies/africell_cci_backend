@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 
 public class SubscriberResponse {
     private String mobileNumber;
-    private String subscribedPlan;
+    private String subscribePlan;   //new
     private String toneCode;
     private String toneName;
     private LocalDateTime billingDate;

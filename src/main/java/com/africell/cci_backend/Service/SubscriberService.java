@@ -42,7 +42,7 @@ public class SubscriberService {
     private SubscriberResponse buildFromSubscription(TblSubscription sub) {
         SubscriberResponse response = new SubscriberResponse();
         response.setMobileNumber(String.valueOf(sub.getMsisdn()));
-        response.setSubscribedPlan(sub.getPackName());
+        response.setSubscribePlan(mapProductIdToPlan(sub.getProductId()));
         response.setToneCode(sub.getToneCode());
         response.setBillingDate(sub.getBillingDate());
         response.setRenewalDate(sub.getRenewDate());
@@ -64,5 +64,20 @@ public class SubscriberService {
                 .ifPresent(tone -> response.setToneName(tone.getToneName()));
 
         return response;
+    }
+
+    private String mapProductIdToPlan(String productId) {
+        if (productId == null || productId.isEmpty()) {
+            return "Unknown";
+        }
+
+        char lastChar = productId.charAt(productId.length() - 1);
+
+        return switch (lastChar) {
+            case 'D' -> "Daily";
+            case 'W' -> "Weekly";
+            case 'M' -> "Monthly";
+            default -> "Unknown";
+        };
     }
 }
