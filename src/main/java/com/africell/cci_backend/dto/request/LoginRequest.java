@@ -1,4 +1,4 @@
-package com.africell.cci_backend.dto;
+package com.africell.cci_backend.dto.request;
 import lombok.Getter;
 import lombok.Setter;
 @Getter

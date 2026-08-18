@@ -22,12 +22,13 @@ public class SubscriberController {
 
         if (result.isPresent()) {
             return ResponseEntity.ok(result.get());
-        }
+        }else {
+            Map<String, Object> notFound = Map.of(
+                    "message", "Subscriber not found",
+                    "msisdn", msisdn
+            );
 
-        Map<String, Object> notFound = Map.of(
-                "message", "Subscriber not found",
-                "msisdn", msisdn
-        );
-        return ResponseEntity.status(404).body(notFound);
+            return ResponseEntity.status(404).body(notFound);
+        }
     }
 }

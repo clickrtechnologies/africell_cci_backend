@@ -1,4 +1,4 @@
-package com.africell.cci_backend.dto;
+package com.africell.cci_backend.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

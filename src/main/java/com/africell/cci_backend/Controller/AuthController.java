@@ -1,7 +1,7 @@
 package com.africell.cci_backend.Controller;
 
-import com.africell.cci_backend.dto.LoginRequest;
-import com.africell.cci_backend.dto.LoginResponse;
+import com.africell.cci_backend.dto.request.LoginRequest;
+import com.africell.cci_backend.dto.response.LoginResponse;
 import com.africell.cci_backend.Service.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,9 +20,9 @@ public class AuthController {
         LoginResponse response = authService.login(request);
         if ("Invalid username or password".equals(response.getMessage())) {
             return ResponseEntity.status(401).body(response);
+        } else {
+            return ResponseEntity.ok(response);
         }
-
-        return ResponseEntity.ok(response);
     }
 
 }

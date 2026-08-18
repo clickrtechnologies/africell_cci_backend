@@ -1,7 +1,7 @@
 package com.africell.cci_backend.Service;
 
-import com.africell.cci_backend.dto.LoginRequest;
-import com.africell.cci_backend.dto.LoginResponse;
+import com.africell.cci_backend.dto.request.LoginRequest;
+import com.africell.cci_backend.dto.response.LoginResponse;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -13,9 +13,10 @@ public class AuthService {
     public LoginResponse login(LoginRequest request) {
         if (USERNAME.equals(request.getUsername()) && PASSWORD.equals(request.getPassword())) {
             return new LoginResponse("Login successful");
-        }
+        } else {
 
-        return new LoginResponse("Invalid username or password");
+            return new LoginResponse("Invalid username or password");
+        }
     }
 
 }
