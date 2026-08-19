@@ -3,6 +3,8 @@ import com.africell.cci_backend.Service.SubscriberService;
 import com.africell.cci_backend.dto.SubscriberResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.africell.cci_backend.dto.request.ActivationRequest;
+import com.africell.cci_backend.dto.response.ActivationResponse;
 
 import java.util.Map;
 import java.util.Optional;
@@ -29,6 +31,35 @@ public class SubscriberController {
             );
 
             return ResponseEntity.status(404).body(notFound);
+        }
+    }
+
+    @PostMapping("/activate")
+    public ResponseEntity<?> activateSubscriber(
+            @RequestBody ActivationRequest request) {
+
+        try {
+
+            ActivationResponse response =
+                    subscriberService.activateSubscriber(request);
+
+            return ResponseEntity.ok(response);
+
+        } catch (IllegalArgumentException e) {
+
+            return ResponseEntity.badRequest().body(
+                    Map.of(
+                            "message", e.getMessage()
+                    )
+            );
+
+        } catch (Exception e) {
+
+            return ResponseEntity.internalServerError().body(
+                    Map.of(
+                            "message", "Unable to activate subscriber"
+                    )
+            );
         }
     }
 }

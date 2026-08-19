@@ -7,7 +7,16 @@ import com.africell.cci_backend.Repository.TblSubscriptionRepository;
 import com.africell.cci_backend.Repository.TblTryNBuyRepository;
 import com.africell.cci_backend.dto.SubscriberResponse;
 import org.springframework.stereotype.Service;
-
+import com.africell.cci_backend.dto.request.ActivationRequest;
+import com.africell.cci_backend.dto.response.ActivationResponse;
+import com.africell.cci_backend.Entity.TblBillingId;
+import com.africell.cci_backend.Repository.TblBillingRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.ParameterMode;
+import jakarta.persistence.StoredProcedureQuery;
+import jakarta.transaction.Transactional;
+import java.time.LocalDateTime;
+import jakarta.persistence.PersistenceContext;
 import java.util.Optional;
 
 @Service
@@ -15,13 +24,19 @@ public class SubscriberService {
     private final TblSubscriptionRepository subscriptionRepository;
     private final TblTryNBuyRepository tryNBuyRepository;
     private final TblToneCatalogueRepository toneCatalogueRepository;
+    private final TblBillingRepository billingRepository;
 
+    @PersistenceContext
+    private EntityManager entityManager;
     public SubscriberService(TblSubscriptionRepository subscriptionRepository,
                              TblTryNBuyRepository tryNBuyRepository,
-                             TblToneCatalogueRepository toneCatalogueRepository) {
+                             TblToneCatalogueRepository toneCatalogueRepository,
+                             TblBillingRepository billingRepository) {
         this.subscriptionRepository = subscriptionRepository;
         this.tryNBuyRepository = tryNBuyRepository;
         this.toneCatalogueRepository = toneCatalogueRepository;
+        this.billingRepository = billingRepository;
+
     }
 
     public Optional<SubscriberResponse> findSubscriber(Long msisdn) {
@@ -53,7 +68,6 @@ public class SubscriberService {
 
             } else {
 
-                // If not found, search in Try & Buy table
                 Optional<TblTryNBuy> tryNBuy =
                         tryNBuyRepository.findById(msisdn);
 
@@ -62,12 +76,10 @@ public class SubscriberService {
                     TblTryNBuy tryBuy = tryNBuy.get();
 
                     SubscriberResponse response = new SubscriberResponse();
-
                     response.setMobileNumber(String.valueOf(msisdn));
                     response.setSubscribePlan("TSUBTNB");
                     response.setToneCode(tryBuy.getToneCode());
 
-                    // Billing and renewal dates are null for Try & Buy
                     response.setBillingDate(null);
                     response.setRenewalDate(null);
 
@@ -81,7 +93,6 @@ public class SubscriberService {
 
                 } else {
 
-                    // MSISDN not found in either table
                     SubscriberResponse response = new SubscriberResponse();
 
                     response.setMobileNumber(null);
@@ -101,5 +112,247 @@ public class SubscriberService {
             throw new RuntimeException(
                     "Error while searching subscriber: " + msisdn, e);
         }
+    }
+
+    @Transactional
+    public ActivationResponse activateSubscriber(ActivationRequest request) {
+
+        try {
+            if (request == null
+                    || request.getMsisdn() == null
+                    || request.getToneCode() == null
+                    || request.getToneName() == null
+                    || request.getPackName() == null) {
+
+                throw new IllegalArgumentException(
+                        "MSISDN, tone code, tone name and pack name are required"
+                );
+            }
+
+            var tone = toneCatalogueRepository
+                    .findByToneCode(request.getToneCode())
+                    .orElseThrow(() ->
+                            new IllegalArgumentException(
+                                    "Tone code not found: " + request.getToneCode()
+                            )
+                    );
+
+            if (!tone.getToneName().equalsIgnoreCase(request.getToneName())) {
+
+                throw new IllegalArgumentException(
+                        "Tone code and tone name do not match"
+                );
+            }
+
+            StoredProcedureQuery procedure =
+                    entityManager.createStoredProcedureQuery("PROC_SUB_UNSUB");
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_ANI",
+                    Long.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_PID",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_TONECODE",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_REQMODE",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_LANG",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_ACTION",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_PROMONAME",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_PROMOID",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.setParameter("IN_ANI", request.getMsisdn());
+
+            procedure.setParameter("IN_PID", request.getPackName());
+
+            procedure.setParameter("IN_TONECODE", request.getToneCode());
+
+            procedure.setParameter("IN_REQMODE", "CCI");
+
+            procedure.setParameter("IN_LANG", "fr");
+
+            procedure.setParameter("IN_ACTION", "S");
+
+            procedure.setParameter("IN_PROMONAME", "NA");
+
+            procedure.setParameter("IN_PROMOID", "NA");
+
+            procedure.execute();
+
+            LocalDateTime now = LocalDateTime.now();
+
+            Optional<TblSubscription> existingSubscription =
+                    subscriptionRepository.findById(request.getMsisdn());
+
+            TblSubscription subscription;
+
+            if (existingSubscription.isPresent()) {
+
+                subscription = existingSubscription.get();
+
+                subscription.setReqDate(now);
+                subscription.setBillingDate(now);
+                subscription.setRenewDate(
+                        calculateRenewalDate(request.getPackName(), now)
+                );
+
+                subscription.setPackName(request.getPackName());
+                subscription.setProductId(request.getPackName());
+
+                subscription.setReqMode("CCI");
+                subscription.setLang("fr");
+
+                subscription.setToneCode(request.getToneCode());
+
+                subscription.setStatus(1);
+
+                subscription.setPromoName("NA");
+                subscription.setPromoId("NA");
+
+            }
+
+            else {
+
+                subscription = new TblSubscription();
+
+                subscription.setMsisdn(request.getMsisdn());
+
+                subscription.setSubDate(now);
+                subscription.setReqDate(now);
+                subscription.setBillingDate(now);
+
+                subscription.setRenewDate(
+                        calculateRenewalDate(request.getPackName(), now)
+                );
+
+                subscription.setPackName(request.getPackName());
+
+                subscription.setProductId(request.getPackName());
+
+                subscription.setReqMode("CCI");
+
+                subscription.setToneCode(request.getToneCode());
+
+                subscription.setLang("fr");
+
+                subscription.setStatus(1);
+
+                subscription.setPromoName("NA");
+                subscription.setPromoId("NA");
+
+                subscription.setUserStatus("NEW");
+
+            }
+
+            subscription = subscriptionRepository.save(subscription);
+
+            ActivationResponse response = new ActivationResponse();
+
+            response.setMsisdn(subscription.getMsisdn());
+            response.setSubDate(subscription.getSubDate());
+            response.setReqDate(subscription.getReqDate());
+            response.setBillingDate(subscription.getBillingDate());
+            response.setRenewDate(subscription.getRenewDate());
+
+            response.setPackName(subscription.getPackName());
+            response.setTransId(subscription.getTransId());
+            response.setServiceId(subscription.getServiceId());
+            response.setProductId(subscription.getProductId());
+
+            response.setReqMode(subscription.getReqMode());
+
+            response.setToneCode(subscription.getToneCode());
+            response.setToneName(tone.getToneName());
+
+            response.setLang(subscription.getLang());
+            response.setStatus(subscription.getStatus());
+            response.setAmount(subscription.getAmount());
+
+            response.setChargingStatus(subscription.getChargingStatus());
+            response.setNoOfRetries(subscription.getNoOfRetries());
+
+            response.setFallbackString(subscription.getFallbackString());
+            response.setFallbackPacks(subscription.getFallbackPacks());
+
+            response.setUserStatus(subscription.getUserStatus());
+            response.setPromoName(subscription.getPromoName());
+            response.setPromoId(subscription.getPromoId());
+
+            response.setCurrentBalance(subscription.getCurrentBalance());
+
+            return response;
+
+
+        } catch (IllegalArgumentException e) {
+
+            throw e;
+
+        } catch (Exception e) {
+
+            throw new RuntimeException(
+                    "Error while activating subscriber: "
+                            + request.getMsisdn(),
+                    e
+            );
+        }
+    }
+
+    private LocalDateTime calculateRenewalDate(
+            String packName,
+            LocalDateTime billingDate) {
+
+        if (packName == null || packName.isBlank()) {
+            throw new IllegalArgumentException("Pack name is required");
+        }
+
+        TblBillingId billingId = billingRepository
+                .findByProductId(packName)
+                .orElseThrow(() ->
+                        new IllegalArgumentException(
+                                "Product not found: " + packName
+                        )
+                );
+
+        if (billingId.getValidity() == null || billingId.getValidity() <= 0) {
+            throw new IllegalArgumentException(
+                    "Invalid validity for product: " + packName
+            );
+        }
+
+        return billingDate.plusDays(billingId.getValidity());
     }
 }
