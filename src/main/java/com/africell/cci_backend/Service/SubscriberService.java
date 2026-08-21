@@ -11,6 +11,7 @@ import com.africell.cci_backend.dto.request.ActivationRequest;
 import com.africell.cci_backend.dto.response.ActivationResponse;
 import com.africell.cci_backend.Entity.TblBillingId;
 import com.africell.cci_backend.Repository.TblBillingRepository;
+import com.africell.cci_backend.dto.response.DeactivateResponse;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.ParameterMode;
 import jakarta.persistence.StoredProcedureQuery;
@@ -39,6 +40,7 @@ public class SubscriberService {
 
     }
 
+    //Find Subscriber
     public Optional<SubscriberResponse> findSubscriber(Long msisdn) {
 
         try {
@@ -60,6 +62,7 @@ public class SubscriberService {
                 response.setRenewalDate(sub.getRenewDate());
                 response.setCurrentActivity("Current active RBT found");
 
+                // Get tone name
                 toneCatalogueRepository.findByToneCode(sub.getToneCode())
                         .ifPresent(tone ->
                                 response.setToneName(tone.getToneName()));
@@ -67,6 +70,7 @@ public class SubscriberService {
                 return Optional.of(response);
 
             } else {
+                //check Try-N-buy
 
                 Optional<TblTryNBuy> tryNBuy =
                         tryNBuyRepository.findById(msisdn);
@@ -85,6 +89,7 @@ public class SubscriberService {
 
                     response.setCurrentActivity("Current active RBT found");
 
+                    // Get tone name
                     toneCatalogueRepository.findByToneCode(tryBuy.getToneCode())
                             .ifPresent(tone ->
                                     response.setToneName(tone.getToneName()));
@@ -92,6 +97,7 @@ public class SubscriberService {
                     return Optional.of(response);
 
                 } else {
+                    // New subscriber
 
                     SubscriberResponse response = new SubscriberResponse();
 
@@ -114,10 +120,12 @@ public class SubscriberService {
         }
     }
 
+    // Activate RBT
     @Transactional
     public ActivationResponse activateSubscriber(ActivationRequest request) {
 
         try {
+            //validate request
             if (request == null
                     || request.getMsisdn() == null
                     || request.getToneCode() == null
@@ -129,6 +137,7 @@ public class SubscriberService {
                 );
             }
 
+            //validate tone
             var tone = toneCatalogueRepository
                     .findByToneCode(request.getToneCode())
                     .orElseThrow(() ->
@@ -144,6 +153,7 @@ public class SubscriberService {
                 );
             }
 
+            // Stored procedure
             StoredProcedureQuery procedure =
                     entityManager.createStoredProcedureQuery("PROC_SUB_UNSUB");
 
@@ -246,7 +256,7 @@ public class SubscriberService {
             }
 
             else {
-
+                //Create subscription
                 subscription = new TblSubscription();
 
                 subscription.setMsisdn(request.getMsisdn());
@@ -277,9 +287,9 @@ public class SubscriberService {
                 subscription.setUserStatus("NEW");
 
             }
-
+            // Save subscription
             subscription = subscriptionRepository.save(subscription);
-
+            // Build response
             ActivationResponse response = new ActivationResponse();
 
             response.setMsisdn(subscription.getMsisdn());
@@ -330,6 +340,143 @@ public class SubscriberService {
             );
         }
     }
+    //Deactivate RBT
+    @Transactional
+    public DeactivateResponse deactivateSubscriber(Long msisdn) {
+
+        try {
+            // Validate MSISDN
+            if (msisdn == null) {
+                throw new IllegalArgumentException(
+                        "MSISDN is required"
+                );
+            }
+
+            // Check whether subscriber has an active subscription
+            Optional<TblSubscription> subscription =
+                    subscriptionRepository.findById(msisdn);
+
+            if (subscription.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "No active subscription found for MSISDN: " + msisdn
+                );
+            }
+            // Stored procedure
+            StoredProcedureQuery procedure =
+                    entityManager.createStoredProcedureQuery("PROC_SUB_UNSUB");
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_ANI",
+                    Long.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_PID",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_TONECODE",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_REQMODE",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_LANG",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_ACTION",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_PROMONAME",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            procedure.registerStoredProcedureParameter(
+                    "IN_PROMOID",
+                    String.class,
+                    ParameterMode.IN
+            );
+
+            // Set procedure parameters
+            procedure.setParameter(
+                    "IN_ANI",
+                    msisdn
+            );
+
+            procedure.setParameter(
+                    "IN_PID",
+                    subscription.get().getProductId()
+            );
+
+            procedure.setParameter(
+                    "IN_TONECODE",
+                    subscription.get().getToneCode()
+            );
+
+            procedure.setParameter(
+                    "IN_REQMODE",
+                    "CCI"
+            );
+
+            procedure.setParameter(
+                    "IN_LANG",
+                    "fr"
+            );
+
+            // IMPORTANT:
+            // U = Unsubscribe / Deactivate
+            procedure.setParameter(
+                    "IN_ACTION",
+                    "U"
+            );
+
+            procedure.setParameter(
+                    "IN_PROMONAME",
+                    "NA"
+            );
+
+            procedure.setParameter(
+                    "IN_PROMOID",
+                    "NA"
+            );
+
+            // Execute procedure
+            procedure.execute();
+
+            return new DeactivateResponse(
+                    msisdn,
+                    "RBT deactivated successfully"
+            );
+
+        } catch (IllegalArgumentException e) {
+
+            throw e;
+
+        } catch (Exception e) {
+
+            throw new RuntimeException(
+                    "Error while deactivating subscriber: " + msisdn,
+                    e
+            );
+        }
+    }
+
 
     private LocalDateTime calculateRenewalDate(
             String packName,
