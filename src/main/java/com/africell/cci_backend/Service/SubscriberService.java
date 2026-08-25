@@ -502,4 +502,38 @@ public class SubscriberService {
 
         return billingDate.plusDays(billingId.getValidity());
     }
+    @Transactional
+    public void processTryNBuy(
+            Long msisdn,
+            String toneCode) {
+
+        LocalDateTime now = LocalDateTime.now();
+
+        Optional<TblTryNBuy> existing =
+                tryNBuyRepository.findById(msisdn);
+
+        TblTryNBuy tryNBuy;
+
+        if (existing.isPresent()) {
+
+            // Existing Try N Buy record → update
+            tryNBuy = existing.get();
+
+            tryNBuy.setToneCode(toneCode);
+            tryNBuy.setReqDate(now);
+            tryNBuy.setStatus(1);
+
+        } else {
+
+            // New Try N Buy record → insert
+            tryNBuy = new TblTryNBuy();
+
+            tryNBuy.setMsisdn(msisdn);
+            tryNBuy.setToneCode(toneCode);
+            tryNBuy.setReqDate(now);
+            tryNBuy.setStatus(1);
+        }
+
+        tryNBuyRepository.save(tryNBuy);
+    }
 }

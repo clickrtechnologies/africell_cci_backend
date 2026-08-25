@@ -25,6 +25,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/subscriber/**").permitAll()
                         .requestMatchers("/api/tone-catalogue/**").permitAll()
+                        .requestMatchers("/api/rbt/activate").permitAll()
                         .anyRequest().authenticated()
                 );
 
