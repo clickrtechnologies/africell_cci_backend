@@ -507,6 +507,18 @@ public class SubscriberService {
             Long msisdn,
             String toneCode) {
 
+        if (msisdn == null) {
+            throw new IllegalArgumentException(
+                    "MSISDN is required"
+            );
+        }
+
+        if (toneCode == null || toneCode.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Tone code is required"
+            );
+        }
+
         LocalDateTime now = LocalDateTime.now();
 
         Optional<TblTryNBuy> existing =
@@ -521,7 +533,7 @@ public class SubscriberService {
 
             tryNBuy.setToneCode(toneCode);
             tryNBuy.setReqDate(now);
-            tryNBuy.setStatus(1);
+            tryNBuy.setStatus(2);
 
         } else {
 
@@ -531,7 +543,11 @@ public class SubscriberService {
             tryNBuy.setMsisdn(msisdn);
             tryNBuy.setToneCode(toneCode);
             tryNBuy.setReqDate(now);
-            tryNBuy.setStatus(1);
+            /*
+             * Try N Buy status
+             * 2 = active/processed Try N Buy
+             */
+            tryNBuy.setStatus(2);
         }
 
         tryNBuyRepository.save(tryNBuy);
