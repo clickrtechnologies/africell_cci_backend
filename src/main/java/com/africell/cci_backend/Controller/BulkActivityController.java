@@ -207,4 +207,43 @@ public class BulkActivityController {
             );
         }
     }
+    @GetMapping(
+            value = "/history/export",
+            produces = "text/csv"
+    )
+    public ResponseEntity<?> exportHistory() {
+
+        try {
+
+            byte[] csv =
+                    bulkActivityService.exportHistory();
+
+            if (csv == null || csv.length == 0) {
+
+                return ResponseEntity.noContent().build();
+            }
+
+            return ResponseEntity.ok()
+                    .contentType(
+                            MediaType.parseMediaType("text/csv")
+                    )
+                    .header(
+                            "Content-Disposition",
+                            "attachment; filename=\"bulk_history_export.csv\""
+                    )
+                    .body(csv);
+
+        } catch (Exception e) {
+
+            e.printStackTrace();
+
+            return ResponseEntity.internalServerError()
+                    .body(
+                            Map.of(
+                                    "message",
+                                    "Unable to export bulk history"
+                            )
+                    );
+        }
+    }
 }

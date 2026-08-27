@@ -835,4 +835,63 @@ public class BulkActivityService {
                 .replaceAll("[\\s_-]+", "")
                 .toLowerCase();
     }
+    public byte[] exportHistory() {
+
+        List<TblBulkHistoryDetail> details =
+                bulkHistoryDetailRepository.findAll();
+
+        if (details == null || details.isEmpty()) {
+            return new byte[0];
+        }
+
+        StringBuilder csv = new StringBuilder();
+
+        csv.append(
+                "ID,Preview ID,Mobile Number,Tone ID,Tone Name,Artist Name,Package Plan,Status,Message,Transaction Date\n"
+        );
+
+        for (TblBulkHistoryDetail detail : details) {
+
+            csv.append(csvValue(detail.getId())).append(",");
+            csv.append(csvValue(detail.getPreviewId())).append(",");
+            csv.append(csvValue(detail.getMobile())).append(",");
+            csv.append(csvValue(detail.getToneId())).append(",");
+            csv.append(csvValue(detail.getToneName())).append(",");
+            csv.append(csvValue(detail.getArtistName())).append(",");
+            csv.append(csvValue(detail.getPackagePlan())).append(",");
+            csv.append(
+                    csvValue(
+                            detail.getStatus() != null &&
+                                    detail.getStatus() == 1
+                                    ? "SUCCESS"
+                                    : "FAILED"
+                    )
+            ).append(",");
+            csv.append(csvValue(detail.getMessage())).append(",");
+            csv.append(csvValue(detail.getTransactionDate())).append("\n");
+        }
+
+        return csv.toString()
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+    private String csvValue(Object value) {
+
+        if (value == null) {
+            return "";
+        }
+
+        String text = String.valueOf(value);
+
+        if (text.contains(",")
+                || text.contains("\"")
+                || text.contains("\n")
+                || text.contains("\r")) {
+
+            text = text.replace("\"", "\"\"");
+
+            return "\"" + text + "\"";
+        }
+
+        return text;
+    }
 }
